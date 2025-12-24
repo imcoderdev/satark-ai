@@ -83,8 +83,8 @@ def analyze_screenshot(image: Image.Image, api_key: str = None) -> dict:
     configure_gemini(key)
     
     try:
-        # Initialize the model (using gemini-2.0-flash for better availability)
-        model = genai.GenerativeModel('gemini-2.5-flash')
+        # Initialize the model
+        model = genai.GenerativeModel('gemini-2.0-flash')
         
         # Send image with prompt to Gemini
         response = model.generate_content([SCAM_DETECTION_PROMPT, image])

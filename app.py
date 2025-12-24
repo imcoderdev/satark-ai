@@ -65,15 +65,24 @@ st.divider()
 # API Key Input (Sidebar)
 with st.sidebar:
     st.header("⚙️ Settings")
-    api_key = st.text_input(
-        "Google Gemini API Key",
-        type="password",
-        help="Get your API key from Google AI Studio"
-    )
-    if api_key:
-        st.success("API Key configured! ✅")
+    
+    # Check if API key is set in environment
+    import os
+    env_key_set = bool(os.getenv("GEMINI_API_KEY"))
+    
+    if env_key_set:
+        st.success("✅ API Key loaded from .env file!")
+        api_key = None  # Will use env var in utils.py
     else:
-        st.warning("API Key daalo pehle!")
+        api_key = st.text_input(
+            "Google Gemini API Key",
+            type="password",
+            help="Or set GEMINI_API_KEY in .env file"
+        )
+        if api_key:
+            st.success("API Key configured! ✅")
+        else:
+            st.info("💡 Tip: Add GEMINI_API_KEY to .env file")
 
 # Main Upload Section
 st.header("📸 Screenshot Upload Karo")

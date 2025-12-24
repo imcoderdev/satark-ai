@@ -59,7 +59,7 @@ def configure_gemini(api_key: str):
 
 def analyze_screenshot(image: Image.Image, api_key: str = None) -> dict:
     """
-    Analyze a screenshot for potential scams using Gemini 1.5 Flash.
+    Analyze a screenshot for potential scams using Gemini 2.5 Flash.
     
     Args:
         image: PIL Image object of the screenshot
@@ -84,7 +84,7 @@ def analyze_screenshot(image: Image.Image, api_key: str = None) -> dict:
     
     try:
         # Initialize the model
-        model = genai.GenerativeModel('gemini-2.0-flash')
+        model = genai.GenerativeModel('gemini-2.5-flash')
         
         # Send image with prompt to Gemini
         response = model.generate_content([SCAM_DETECTION_PROMPT, image])

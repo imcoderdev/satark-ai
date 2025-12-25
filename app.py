@@ -7,6 +7,8 @@ Team Tark | ML Nashik Gen AI-thon 2025
 import streamlit as st
 from PIL import Image
 from utils import analyze_screenshot, check_blacklist
+import uuid
+from datetime import datetime
 
 # Page Configuration
 st.set_page_config(
@@ -15,6 +17,14 @@ st.set_page_config(
     layout="centered",
     initial_sidebar_state="collapsed"
 )
+
+# Initialize session state for storing analysis results
+if "analysis_result" not in st.session_state:
+    st.session_state.analysis_result = None
+if "scan_id" not in st.session_state:
+    st.session_state.scan_id = None
+if "scan_timestamp" not in st.session_state:
+    st.session_state.scan_timestamp = None
 
 # Custom CSS for clean, trustworthy look
 st.markdown("""
@@ -113,6 +123,10 @@ if uploaded_file is not None:
     # Analyze Button
     if st.button("🔍 Analyze Karo!", type="primary", use_container_width=True):
         
+        # Generate scan ID and timestamp
+        st.session_state.scan_id = f"SATARK-{str(uuid.uuid4())[:8].upper()}"
+        st.session_state.scan_timestamp = datetime.now().isoformat()
+        
         # Use st.status for detailed progress
         with st.status("🤖 Satark Agent Activated...", expanded=True) as status:
             st.write("📷 Screenshot received...")
@@ -122,6 +136,9 @@ if uploaded_file is not None:
             
             # Call the analysis function (uses default API key if none provided)
             result = analyze_screenshot(image, api_key if api_key else None)
+            
+            # Store result in session state for Debug Mode
+            st.session_state.analysis_result = result
             
             verdict = result.get("verdict", "UNKNOWN")
             if verdict == "SCAM":
@@ -215,19 +232,14 @@ if uploaded_file is not None:
                 delta=None
             )
         
-        # Visual Risk Meter
+        # Visual Risk Meter - Use actual risk_score from API
         st.subheader("📊 Visual Risk Meter")
         
-        # Set risk score based on verdict
-        if verdict == "SCAM":
-            meter_score = 95
-        elif verdict == "SUSPICIOUS":
-            meter_score = 65
-        else:  # SAFE
-            meter_score = 10
+        # Use actual risk score from API response
+        meter_score = result.get("risk_score", 50)
         
         # Progress bar for risk
-        st.progress(meter_score / 100)
+        st.progress(min(meter_score, 100) / 100)
         
         # Caption with color based on risk
         if meter_score >= 70:
@@ -237,20 +249,28 @@ if uploaded_file is not None:
         else:
             st.markdown(f"<p style='text-align: center; color: #00c853; font-weight: bold; font-size: 1.2rem;'>✅ Scam Probability: {meter_score}%</p>", unsafe_allow_html=True)
         
+        # Show scam type if detected
+        scam_type = result.get("scam_type", "N/A")
+        if scam_type and scam_type != "N/A" and scam_type != "None" and verdict != "SAFE":
+            st.markdown(f"<p style='text-align: center; color: #666; font-size: 1rem;'>🏷️ Detected Type: <b>{scam_type}</b></p>", unsafe_allow_html=True)
+        
         st.divider()
         
         # Detailed Analysis
         st.subheader("🔎 Detailed Analysis")
         
         with st.expander("See Full Report", expanded=True):
-            st.write("**🗣️ Reasoning:**")
+            # Technical reasoning
+            st.write("**🔬 Technical Analysis:**")
             st.info(result.get("reasoning", "N/A"))
             
-            st.write("**💡 Recommended Action:**")
-            st.warning(result.get("action", "N/A"))
+            # Hinglish advice (the savage Desi Big Brother advice)
+            st.write("**💪 Desi Big Brother Says:**")
+            hinglish = result.get("hinglish_advice", result.get("action", "Sambhal ke reh bhai!"))
+            st.warning(hinglish)
             
-            # Extracted Info
-            extracted = result.get("extracted_info", {})
+            # Extracted Info - use new field name
+            extracted = result.get("extracted_entities", result.get("extracted_info", {}))
             if extracted and any(extracted.values()):
                 st.write("**📝 Extracted Information:**")
                 if extracted.get("company_name"):
@@ -259,11 +279,26 @@ if uploaded_file is not None:
                     st.write(f"• Phone: `{extracted['phone_number']}`")
                 if extracted.get("amount"):
                     st.write(f"• Amount: `{extracted['amount']}`")
+                if extracted.get("upi_id"):
+                    st.write(f"• UPI ID: `{extracted['upi_id']}`")
+                if extracted.get("url"):
+                    st.write(f"• URL: `{extracted['url']}`")
             
             if result.get("red_flags"):
                 st.write("**🚩 Red Flags Found:**")
                 for flag in result["red_flags"]:
                     st.error(f"• {flag}")
+            
+            # Show scam type badge
+            scam_type = result.get("scam_type", "N/A")
+            if scam_type and scam_type not in ["N/A", "None", "null"] and verdict != "SAFE":
+                st.markdown(f"""
+                <div style='background: #1a1a2e; color: #ff6b6b; padding: 0.8rem; 
+                            border-radius: 8px; text-align: center; 
+                            border: 2px solid #ff6b6b; margin-top: 1rem;'>
+                    <b>🏷️ Scam Category: {scam_type}</b>
+                </div>
+                """, unsafe_allow_html=True)
             
             if result.get("blacklisted_entity"):
                 st.markdown("""
@@ -299,57 +334,91 @@ else:
         st.write("**Digital Arrest**")
         st.caption("Fake police/CBI threat calls")
 
-# Debug Mode - Agent Logic Viewer (Impress the judges! 🏆)
+# Debug Mode - Agent Logic Viewer (Real Data - Single Source of Truth! 🏆)
 st.divider()
 with st.expander("🛠️ View Agent Logic (Debug Mode)", expanded=False):
-    st.markdown("#### 🔬 System Trace Log")
     
-    # Fake scan metadata
-    import uuid
-    import random
-    scan_id = str(uuid.uuid4())[:8].upper()
-    
-    trace_data = {
-        "scan_id": f"SATARK-{scan_id}",
-        "timestamp": "2025-12-25T10:42:31.892Z",
-        "ocr_confidence": 0.98,
-        "model_version": "gemini-2.5-flash",
-        "extracted_entities": [
-            "SBM Bank",
-            "Amount: ₹10,00,000",
-            "Phone: +91-98XXX-XXXXX",
-            "UPI: fraud@ybl"
-        ],
-        "threat_signals": {
-            "urgency_score": 0.92,
-            "grammar_errors": 3,
-            "blacklist_hits": 1
+    # Check if we have analysis results
+    if st.session_state.analysis_result is not None:
+        result = st.session_state.analysis_result
+        
+        st.markdown("#### 🔬 Gemini API Response (Single Source of Truth)")
+        
+        # Build the real trace data from actual analysis
+        trace_data = {
+            "scan_id": st.session_state.scan_id,
+            "timestamp": st.session_state.scan_timestamp,
+            "verdict": result.get("verdict", "N/A"),
+            "risk_score": result.get("risk_score", 0),
+            "scam_type": result.get("scam_type", "N/A"),
+            "extracted_entities": result.get("extracted_entities", {}),
+            "red_flags": result.get("red_flags", []),
+            "reasoning": result.get("reasoning", "N/A"),
+            "hinglish_advice": result.get("hinglish_advice", "N/A"),
+            "model": result.get("model", "gemini-2.5-flash"),
+            "latency_ms": result.get("latency_ms", 0),
+            "parse_success": result.get("parse_success", False)
         }
-    }
-    
-    st.json(trace_data)
-    
-    st.markdown("#### 📜 Pattern Matching Log")
-    fake_log = """[2025-12-25 10:42:31.421] INFO  - OCR Engine initialized (Tesseract v5.3)
-[2025-12-25 10:42:31.523] INFO  - Text extraction complete (1247 chars)
-[2025-12-25 10:42:31.612] DEBUG - Running RegEx pattern matcher...
-[2025-12-25 10:42:31.698] WARN  - Urgency keywords detected: ["turant", "abhi", "last chance"]
-[2025-12-25 10:42:31.756] ERROR - ⚠️  MATCH FOUND: Pattern_ID_402 (Laxmi Chit Fund variant)
-[2025-12-25 10:42:31.801] INFO  - Blacklist DB query: 1 hit(s)
-[2025-12-25 10:42:31.892] INFO  - Final verdict computed: SCAM (confidence: 0.97)"""
-    
-    st.code(fake_log, language="log")
-    
-    # Performance metrics
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        st.info("⏱️ **Latency:** 1.2s")
-    with col2:
-        st.info("🧠 **Model:** Gemini 2.5 Flash")
-    with col3:
-        st.info("🔒 **Secure:** TLS 1.3")
-    
-    st.caption("_Agent trace exported for audit compliance. Session ID: " + scan_id + "_")
+        
+        st.json(trace_data)
+        
+        st.markdown("#### 📜 Execution Log")
+        
+        # Generate real execution log based on actual data
+        timestamp = st.session_state.scan_timestamp or datetime.now().isoformat()
+        latency = result.get("latency_ms", 0)
+        verdict = result.get("verdict", "UNKNOWN")
+        risk_score = result.get("risk_score", 0)
+        scam_type = result.get("scam_type", "N/A")
+        parse_success = result.get("parse_success", False)
+        red_flags = result.get("red_flags", [])
+        
+        log_lines = [
+            f"[{timestamp}] INFO  - Satark.ai Agent initialized",
+            f"[{timestamp}] INFO  - Image received, starting analysis...",
+            f"[{timestamp}] INFO  - Sending to Gemini 2.5 Flash API...",
+            f"[{timestamp}] INFO  - API response received in {latency}ms",
+            f"[{timestamp}] {'INFO ' if parse_success else 'WARN '} - JSON parse: {'SUCCESS' if parse_success else 'FALLBACK MODE'}",
+        ]
+        
+        # Add red flag detections
+        for flag in red_flags[:3]:  # Limit to 3 for readability
+            log_lines.append(f"[{timestamp}] WARN  - Red flag detected: {flag}")
+        
+        if verdict == "SCAM":
+            log_lines.append(f"[{timestamp}] ERROR - 🚨 SCAM DETECTED! Type: {scam_type}")
+        elif verdict == "SUSPICIOUS":
+            log_lines.append(f"[{timestamp}] WARN  - ⚠️ Suspicious activity detected")
+        else:
+            log_lines.append(f"[{timestamp}] INFO  - ✅ Content appears safe")
+        
+        log_lines.append(f"[{timestamp}] INFO  - Final verdict: {verdict} (Risk: {risk_score}/100)")
+        log_lines.append(f"[{timestamp}] INFO  - Analysis complete. Scan ID: {st.session_state.scan_id}")
+        
+        real_log = "\n".join(log_lines)
+        st.code(real_log, language="log")
+        
+        # Performance metrics - REAL DATA
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            latency_sec = latency / 1000 if latency else 0
+            st.info(f"⏱️ **Latency:** {latency_sec:.2f}s")
+        with col2:
+            st.info(f"🧠 **Model:** {result.get('model', 'gemini-2.5-flash')}")
+        with col3:
+            status_icon = "✅" if parse_success else "⚠️"
+            st.info(f"{status_icon} **Parse:** {'Success' if parse_success else 'Fallback'}")
+        
+        # Show raw response if parsing failed
+        if not parse_success and result.get("raw_response"):
+            st.markdown("#### ⚠️ Raw API Response (Parse Failed)")
+            st.code(result.get("raw_response", ""), language="text")
+        
+        st.caption(f"_Agent trace exported for audit compliance. Session ID: {st.session_state.scan_id}_")
+        
+    else:
+        st.info("📷 Upload and analyze a screenshot to see real agent logs here!")
+        st.caption("Debug Mode shows the actual Gemini API response - no fake data!")
 
 # Footer
 st.divider()

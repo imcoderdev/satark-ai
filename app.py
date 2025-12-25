@@ -215,6 +215,30 @@ if uploaded_file is not None:
                 delta=None
             )
         
+        # Visual Risk Meter
+        st.subheader("📊 Visual Risk Meter")
+        
+        # Set risk score based on verdict
+        if verdict == "SCAM":
+            meter_score = 95
+        elif verdict == "SUSPICIOUS":
+            meter_score = 65
+        else:  # SAFE
+            meter_score = 10
+        
+        # Progress bar for risk
+        st.progress(meter_score / 100)
+        
+        # Caption with color based on risk
+        if meter_score >= 70:
+            st.markdown(f"<p style='text-align: center; color: #d32f2f; font-weight: bold; font-size: 1.2rem;'>🚨 Scam Probability: {meter_score}%</p>", unsafe_allow_html=True)
+        elif meter_score >= 40:
+            st.markdown(f"<p style='text-align: center; color: #ff9800; font-weight: bold; font-size: 1.2rem;'>⚠️ Scam Probability: {meter_score}%</p>", unsafe_allow_html=True)
+        else:
+            st.markdown(f"<p style='text-align: center; color: #00c853; font-weight: bold; font-size: 1.2rem;'>✅ Scam Probability: {meter_score}%</p>", unsafe_allow_html=True)
+        
+        st.divider()
+        
         # Detailed Analysis
         st.subheader("🔎 Detailed Analysis")
         
@@ -329,5 +353,19 @@ with st.expander("🛠️ View Agent Logic (Debug Mode)", expanded=False):
 
 # Footer
 st.divider()
-st.caption("Made with ❤️ by Team Tark | ML Nashik Gen AI-thon 2025")
-st.caption("⚠️ Disclaimer: Yeh tool sirf awareness ke liye hai. Legal advice ke liye proper authorities se contact karo.")
+st.markdown("""
+<div style='text-align: center; padding: 2rem 0;'>
+    <p style='color: #888; font-size: 0.9rem; font-style: italic; margin-bottom: 0.5rem;'>
+        "Apni mehnat ka paisa hai, aise mat udaao." - Satark.ai
+    </p>
+    <p style='color: #888; font-size: 0.85rem; margin-bottom: 0.3rem;'>
+        Made with ❤️ by Team Tark
+    </p>
+    <p style='color: #aaa; font-size: 0.75rem;'>
+        © 2025 Satark.ai | ML Nashik Gen AI-thon
+    </p>
+    <p style='color: #aaa; font-size: 0.7rem; margin-top: 0.5rem;'>
+        ⚠️ Disclaimer: Yeh tool sirf awareness ke liye hai. Legal advice ke liye proper authorities se contact karo.
+    </p>
+</div>
+""", unsafe_allow_html=True)

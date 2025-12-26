@@ -48,10 +48,50 @@ Analyze this screenshot (WhatsApp/SMS/App) and detect if it's a financial scam.
     },
     "red_flags": ["<flag1>", "<flag2>"],
     "reasoning": "<Technical 2-3 sentence explanation of why this is a scam/safe>",
-    "hinglish_advice": "<Savage Desi Big Brother advice in Hinglish, e.g., 'Bhaag ja bhai! Yeh 100% fraud hai!'>"
+    "hinglish_advice": "<Safety advice in the language specified below>"
 }
 
 IMPORTANT: Respond with ONLY valid JSON. No markdown code blocks. No extra text before or after."""
+
+
+# Language-specific prompt additions
+LANGUAGE_INSTRUCTIONS = {
+    "Hinglish": """
+LANGUAGE INSTRUCTION: Provide the 'reasoning' and 'hinglish_advice' fields in HINGLISH (Hindi-English mix).
+Use a savage, protective Gen-Z style. Be dramatic and use phrases like:
+- "Bhaag ja bhai!"
+- "Yeh 100% fraud hai!"
+- "Paise bachao, isko block karo!"
+- "Red flag spotted! Danger zone mein ho tum!"
+""",
+    "English": """
+LANGUAGE INSTRUCTION: Provide the 'reasoning' and 'hinglish_advice' fields in FORMAL ENGLISH.
+Use a professional, clear tone. Be direct and informative.
+""",
+    "Hindi": """
+LANGUAGE INSTRUCTION: Provide the 'reasoning' and 'hinglish_advice' fields in PURE HINDI (Devanagari script).
+Use a protective, caring tone like a concerned elder brother. Examples:
+- "सावधान रहो भाई!"
+- "यह धोखाधड़ी है!"
+- "तुरंत ब्लॉक करो!"
+- "पुलिस में शिकायत करो!"
+""",
+    "Marathi": """
+LANGUAGE INSTRUCTION: Provide the 'reasoning' and 'hinglish_advice' fields in MARATHI (Devanagari script).
+Use a stern, authoritative tone like a strict elder. Examples:
+- "सावध रहा!"
+- "हे फसवणूक आहे!"
+- "लगेच ब्लॉक करा!"
+- "सायबर सेलला तक्रार करा!"
+"""
+}
+
+
+def get_prompt_with_language(language: str) -> str:
+    """Get the scam detection prompt with language-specific instructions."""
+    base_prompt = SCAM_DETECTION_PROMPT
+    lang_instruction = LANGUAGE_INSTRUCTIONS.get(language, LANGUAGE_INSTRUCTIONS["Hinglish"])
+    return f"{base_prompt}\n\n{lang_instruction}"
 
 
 def configure_gemini(api_key: str):
@@ -59,7 +99,7 @@ def configure_gemini(api_key: str):
     genai.configure(api_key=api_key)
 
 
-def analyze_screenshot(image: Image.Image, api_key: str = None) -> dict:
+def analyze_screenshot(image: Image.Image, api_key: str = None, language: str = "Hinglish") -> dict:
     """
     Analyze a screenshot for potential scams using Gemini 2.5 Flash.
     
@@ -95,8 +135,11 @@ def analyze_screenshot(image: Image.Image, api_key: str = None) -> dict:
         # Initialize the model
         model = genai.GenerativeModel('gemini-2.5-flash')
         
+        # Get language-specific prompt
+        prompt = get_prompt_with_language(language)
+        
         # Send image with prompt to Gemini
-        response = model.generate_content([SCAM_DETECTION_PROMPT, image])
+        response = model.generate_content([prompt, image])
         
         # Calculate latency
         end_time = time.time()

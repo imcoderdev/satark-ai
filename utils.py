@@ -598,6 +598,7 @@ def generate_cyber_complaint(scam_details: dict) -> bytes:
             - risk_score: AI-assigned risk score
             - red_flags: List of detected red flags
             - reasoning: AI's reasoning
+            - user_profile: Dictionary with name, contact, email, address, city, state
     
     Returns:
         PDF as bytes for download
@@ -615,6 +616,15 @@ def generate_cyber_complaint(scam_details: dict) -> bytes:
     risk_score = scam_details.get("risk_score", 0)
     red_flags = scam_details.get("red_flags", [])
     reasoning = scam_details.get("reasoning") or "[AI analysis not available]"
+    
+    # Extract user profile (with fallbacks for backward compatibility)
+    user_profile = scam_details.get("user_profile", {})
+    user_name = user_profile.get("name", "[Your Name]")
+    user_contact = user_profile.get("contact", "[Your Contact Number]")
+    user_email = user_profile.get("email", "[Your Email Address]")
+    user_address = user_profile.get("address", "[Your Address]")
+    user_city = user_profile.get("city", "[City Name]")
+    user_state = user_profile.get("state", "[State]")
     
     current_date = datetime.now().strftime("%d %B %Y")
     current_time = datetime.now().strftime("%I:%M %p")
@@ -640,7 +650,7 @@ def generate_cyber_complaint(scam_details: dict) -> bytes:
     pdf.set_font("Helvetica", "B", 11)
     pdf.cell(0, 6, "To:", ln=True)
     pdf.set_font("Helvetica", "", 11)
-    pdf.multi_cell(0, 6, "The Nodal Officer,\nCyber Crime Cell,\n[City Name], [State]\nNational Cyber Crime Reporting Portal")
+    pdf.multi_cell(0, 6, f"The Nodal Officer,\nCyber Crime Cell,\n{user_city}, {user_state}\nNational Cyber Crime Reporting Portal")
     pdf.ln(5)
     
     # Subject
@@ -719,10 +729,10 @@ def generate_cyber_complaint(scam_details: dict) -> bytes:
     pdf.set_font("Helvetica", "", 11)
     pdf.cell(0, 6, "Yours faithfully,", ln=True)
     pdf.ln(8)
-    pdf.cell(0, 6, "[Your Name]", ln=True)
-    pdf.cell(0, 6, "[Your Contact Number]", ln=True)
-    pdf.cell(0, 6, "[Your Email Address]", ln=True)
-    pdf.cell(0, 6, "[Your Address]", ln=True)
+    pdf.cell(0, 6, user_name, ln=True)
+    pdf.cell(0, 6, user_contact, ln=True)
+    pdf.cell(0, 6, user_email, ln=True)
+    pdf.cell(0, 6, user_address, ln=True)
     pdf.ln(10)
     
     # Footer

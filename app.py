@@ -10,6 +10,17 @@ from utils import analyze_screenshot, check_blacklist, generate_cyber_complaint,
 from live_scraper import get_db_stats, update_db, live_db
 import uuid
 from datetime import datetime
+import time
+
+# Demo User Profile for Auto-Report Feature (DigiLocker Integration Demo)
+DEMO_USER_PROFILE = {
+    "name": "Rahul Sharma",
+    "contact": "+91 98765 43210",
+    "email": "rahul.sharma@example.com",
+    "address": "Plot No 45, Satpur MIDC, Nashik, Maharashtra",
+    "city": "Nashik",
+    "state": "Maharashtra"
+}
 
 # Page Configuration
 st.set_page_config(
@@ -666,7 +677,7 @@ if uploaded_file is not None:
                 st.divider()
                 st.markdown(f"#### {ui['legal_action']}")
                 
-                # Generate PDF directly and show download button
+                # Generate PDF immediately for one-click download
                 entities = result.get("extracted_entities", {})
                 scam_details = {
                     "scam_type": result.get("scam_type", "Financial Fraud"),
@@ -676,15 +687,15 @@ if uploaded_file is not None:
                     "extracted_text": result.get("reasoning", ""),
                     "risk_score": result.get("risk_score", 0),
                     "red_flags": result.get("red_flags", []),
-                    "reasoning": result.get("reasoning", "")
+                    "reasoning": result.get("reasoning", ""),
+                    "user_profile": DEMO_USER_PROFILE
                 }
-                
-                # Generate PDF on demand
                 pdf_bytes = generate_cyber_complaint(scam_details)
                 pdf_filename = f"Cyber_Complaint_{datetime.now().strftime('%Y%m%d')}.pdf"
                 
+                # Single-click download button
                 st.download_button(
-                    label=ui["download_complaint"],
+                    label="👮 Draft & Download Cyber Complaint",
                     data=pdf_bytes,
                     file_name=pdf_filename,
                     mime="application/pdf",

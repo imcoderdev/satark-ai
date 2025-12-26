@@ -72,6 +72,13 @@ st.markdown("""
         color: white;
         font-weight: bold;
     }
+    /* Prevent scroll on download button click */
+    .stDownloadButton > button {
+        scroll-behavior: auto !important;
+    }
+    section.main > div {
+        scroll-behavior: auto !important;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -690,19 +697,45 @@ if uploaded_file is not None:
                     "reasoning": result.get("reasoning", ""),
                     "user_profile": DEMO_USER_PROFILE
                 }
-                pdf_bytes = generate_cyber_complaint(scam_details)
-                pdf_filename = f"Cyber_Complaint_{datetime.now().strftime('%Y%m%d')}.pdf"
                 
-                # Single-click download button
-                st.download_button(
-                    label="👮 Draft & Download Cyber Complaint",
-                    data=pdf_bytes,
-                    file_name=pdf_filename,
-                    mime="application/pdf",
-                    use_container_width=True,
-                    type="primary",
-                    key="download_complaint"
-                )
+                # Store PDF in session state to prevent regeneration on rerun
+                if "complaint_pdf" not in st.session_state or st.session_state.get("last_scan_id") != st.session_state.scan_id:
+                    st.session_state.complaint_pdf = generate_cyber_complaint(scam_details)
+                    st.session_state.complaint_filename = f"Cyber_Complaint_{datetime.now().strftime('%Y%m%d')}.pdf"
+                    st.session_state.last_scan_id = st.session_state.scan_id
+                
+                # Use container to isolate download button
+                download_container = st.container()
+                with download_container:
+                    st.download_button(
+                        label="👮 Draft & Download Cyber Complaint",
+                        data=st.session_state.complaint_pdf,
+                        file_name=st.session_state.complaint_filename,
+                        mime="application/pdf",
+                        use_container_width=True,
+                        type="primary",
+                        key="download_complaint"
+                    )
+                
+                # CERT-In Direct Complaint Email
+                st.markdown("""
+                <div style='background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); 
+                            border: 1px solid #0f3460; 
+                            border-radius: 8px; 
+                            padding: 12px 16px; 
+                            margin-top: 10px;'>
+                    <p style='margin: 0; font-size: 0.9rem; color: #e0e0e0;'>
+                        📧 <strong>Direct Complaint to CERT-In:</strong> 
+                        <a href='mailto:info@cert-in.org.in?subject=Cyber%20Fraud%20Complaint%20-%20Satark.ai%20Report' 
+                           style='color: #00d4ff; text-decoration: none; font-weight: bold;'>
+                           info@cert-in.org.in
+                        </a>
+                    </p>
+                    <p style='margin: 5px 0 0 0; font-size: 0.75rem; color: #888;'>
+                        📞 Cyber Helpline: <strong>1930</strong> | 🌐 cybercrime.gov.in
+                    </p>
+                </div>
+                """, unsafe_allow_html=True)
             
             st.divider()
             

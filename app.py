@@ -6,7 +6,8 @@ Team Tark | ML Nashik Gen AI-thon 2025
 
 import streamlit as st
 from PIL import Image
-from utils import analyze_screenshot, check_blacklist, generate_cyber_complaint
+from utils import analyze_screenshot, check_blacklist, generate_cyber_complaint, analyze_with_internet_search
+from live_scraper import get_db_stats, update_db, live_db
 import uuid
 from datetime import datetime
 
@@ -92,6 +93,84 @@ with st.sidebar:
             st.success("API Key configured! ✅")
         else:
             st.info("💡 Tip: Add GEMINI_API_KEY to .env file")
+    
+    st.divider()
+    
+    # LIVE DATABASE STATS - The WOW Factor!
+    st.subheader("🔴 LIVE Scam Intelligence")
+    
+    try:
+        db_stats = get_db_stats()
+        
+        # Metrics in columns
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.metric(
+                "📱 Reported Numbers", 
+                db_stats['reported_numbers'],
+                delta="Live Database"
+            )
+        
+        with col2:
+            st.metric(
+                "💳 Reported UPIs",
+                db_stats['reported_upis'],
+                delta=f"{db_stats['hours_since_update']:.1f}h ago"
+            )
+        
+        # Initialize session state for update result
+        if "last_update_result" not in st.session_state:
+            st.session_state.last_update_result = None
+        
+        # Update button
+        if st.button("🔄 Refresh Intelligence", type="secondary", use_container_width=True):
+            with st.spinner("🌐 Fetching from REAL sources..."):
+                st.caption("• Checking cybercrime.gov.in...")
+                st.caption("• Scanning consumer complaints...")
+                st.caption("• Fetching news reports...")
+                st.caption("• Checking social media...")
+                update_result = update_db()
+                st.session_state.last_update_result = update_result
+        
+        # Display last update result if available
+        if st.session_state.last_update_result:
+            update_result = st.session_state.last_update_result
+            if update_result.get('success'):
+                sources_info = update_result.get('sources', {})
+                st.success(f"✅ Found {update_result['total_reports_fetched']} reports from {sum(sources_info.values())} sources!")
+                
+                # Show source breakdown
+                if sources_info:
+                    st.info(f"""
+                    **Sources:**
+                    - 📰 News: {sources_info.get('google_news', 0)}
+                    - 👥 Consumer Complaints: {sources_info.get('consumer_complaints', 0)}
+                    - 🏛️ Govt Advisories: {sources_info.get('govt_advisory', 0)}
+                    - 🐦 Social Media: {sources_info.get('social_media', 0)}
+                    """)
+        
+        # Show recent reports if available
+        recent_reports = live_db.get_recent_reports(limit=5)
+        if recent_reports:
+            with st.expander("📰 Latest Scam Reports (REAL DATA)", expanded=False):
+                for report in recent_reports:
+                    source_icon = {
+                        'Google News': '📰',
+                        'Consumer Complaints India': '👥',
+                        'National Cyber Crime Portal': '🏛️',
+                        'RBI Press Releases': '🏛️',
+                        'Twitter/X': '🐦'
+                    }.get(report.get('source', ''), '📌')
+                    
+                    st.caption(f"{source_icon} **{report.get('source', 'Unknown')}**")
+                    st.caption(f"   {report.get('title', '')[:150]}...")
+                    if report.get('link'):
+                        st.caption(f"   🔗 [Read more]({report['link']})")
+                    st.caption("---")
+    
+    except Exception as e:
+        st.warning("⚠️ Live database updating...")
     
     st.divider()
     
@@ -481,10 +560,12 @@ if uploaded_file is not None:
             st.write(ui["status_received"])
             st.write(ui["status_ocr"])
             st.write(f"{ui['status_analyzing']} ({current_lang})...")
+            st.write("🔴 Checking LIVE scam database...")
             st.write(ui["status_checking"])
+            st.write("🌐 Searching internet for scam reports...")
             
-            # Call the analysis function with language parameter
-            result = analyze_screenshot(
+            # Call the enhanced analysis function with internet search
+            result = analyze_with_internet_search(
                 image, 
                 api_key if api_key else None,
                 language=current_lang
@@ -686,6 +767,35 @@ if uploaded_file is not None:
             if scam_type and scam_type not in ["N/A", "None", "null"] and verdict != "SAFE":
                 st.markdown(f"<p style='text-align: center; color: #666; font-size: 1rem; margin-top: 0.5rem;'>{ui['detected_type']} <b>{scam_type}</b></p>", unsafe_allow_html=True)
             
+            # LIVE DATABASE MATCH - THE WOW MOMENT! 🔥
+            live_db_data = result.get("live_database", {})
+            if live_db_data.get("total_hits", 0) > 0:
+                st.divider()
+                st.subheader("🚨 LIVE DATABASE ALERT!")
+                
+                hits = live_db_data.get("hits", [])
+                for hit in hits:
+                    if hit['type'] == 'phone':
+                        st.error(f"""
+                        **📱 CONFIRMED SCAMMER NUMBER!**
+                        
+                        This number `{hit['value']}` has been reported **{hit['reports']} times** in our live database!
+                        
+                        Last seen: {hit['last_seen'][:10]}
+                        
+                        Known scam types: {', '.join(hit['scam_types'][:3])}
+                        """)
+                    elif hit['type'] == 'upi':
+                        st.warning(f"""
+                        **💳 UPI ID IN SCAM DATABASE!**
+                        
+                        This UPI ID `{hit['value']}` has been flagged **{hit['reports']} times**!
+                        
+                        DO NOT send money to this account!
+                        """)
+                
+                st.success("✅ This data comes from REAL scam reports updated hourly!")
+            
             st.divider()
             
             # Actionable Advice Section (Language-aware)
@@ -709,6 +819,29 @@ if uploaded_file is not None:
                     for flag in result["red_flags"]:
                         st.write(f"• {flag}")
             
+            # Internet Search Results Section
+            internet_data = result.get("internet_search", {})
+            if internet_data and internet_data.get("sources_found", 0) > 0:
+                st.divider()
+                st.subheader("🌐 Internet Verification Results")
+                
+                search_results = internet_data.get("results", [])
+                sources_count = internet_data.get("sources_found", 0)
+                is_verified = result.get("internet_verified", False)
+                
+                if is_verified:
+                    st.error(f"⚠️ Found {sources_count} online reports confirming this scam!")
+                else:
+                    st.info(f"ℹ️ Searched {sources_count} sources. No major scam reports found.")
+                
+                with st.expander(f"📰 View {min(len(search_results), 5)} Search Results", expanded=is_verified):
+                    for idx, result_item in enumerate(search_results[:5], 1):
+                        st.markdown(f"**{idx}. {result_item.get('title', 'No title')}**")
+                        st.caption(result_item.get('snippet', 'No description'))
+                        st.markdown(f"🔗 [Read more]({result_item.get('link', '#')})")
+                        if idx < len(search_results[:5]):
+                            st.markdown("---")
+            
             # Local Impact Footer (Language-aware)
             st.divider()
             st.markdown(f"<p style='text-align: center; color: #888; font-size: 0.9rem;'>{ui['lang_footer']}</p>", unsafe_allow_html=True)
@@ -730,7 +863,9 @@ if uploaded_file is not None:
                 "hinglish_advice": result.get("hinglish_advice", "N/A"),
                 "model": result.get("model", "gemini-2.5-flash"),
                 "latency_ms": result.get("latency_ms", 0),
-                "parse_success": result.get("parse_success", False)
+                "parse_success": result.get("parse_success", False),
+                "internet_search": result.get("internet_search", {}),
+                "internet_verified": result.get("internet_verified", False)
             }
             
             st.json(trace_data)

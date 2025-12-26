@@ -10,6 +10,8 @@ import os
 import re
 import time
 from dotenv import load_dotenv
+from duckduckgo_search import DDGS
+from live_scraper import live_db, check_phone, check_upi
 
 
 load_dotenv()
@@ -370,6 +372,216 @@ def check_blacklist(text: str) -> tuple[bool, str]:
         if keyword in text_lower:
             return True, keyword
     return False, ""
+
+
+def search_internet_for_scam(query: str, max_results: int = 3) -> list:
+    """
+    Search the internet for scam reports using DuckDuckGo.
+    
+    Args:
+        query: Search query string
+        max_results: Maximum number of results to return
+    
+    Returns:
+        List of search results with title, link, and snippet
+    """
+    try:
+        ddgs = DDGS()
+        results = []
+        
+        # Search with timeout
+        search_results = ddgs.text(query, max_results=max_results, region='in-en', safesearch='off')
+        
+        for r in search_results:
+            results.append({
+                "title": r.get("title", ""),
+                "link": r.get("href", ""),
+                "snippet": r.get("body", "")
+            })
+        
+        return results
+    except Exception as e:
+        return []
+
+
+def build_search_queries(initial_analysis: dict) -> list:
+    """
+    Build search queries based on initial AI analysis.
+    
+    Args:
+        initial_analysis: Dict containing extracted entities and scam type
+    
+    Returns:
+        List of search query strings
+    """
+    queries = []
+    entities = initial_analysis.get("extracted_entities", {})
+    scam_type = initial_analysis.get("scam_type", "")
+    
+    # Query 1: Company name + scam
+    company = entities.get("company_name")
+    if company and company.lower() not in ["null", "none", ""]:
+        queries.append(f"{company} scam india fraud complaint")
+    
+    # Query 2: Phone number + scam
+    phone = entities.get("phone_number")
+    if phone and phone.lower() not in ["null", "none", ""]:
+        queries.append(f"{phone} scam fraud india reports")
+    
+    # Query 3: Scam type specific
+    if scam_type and scam_type.lower() not in ["null", "none", "n/a", "unknown", ""]:
+        queries.append(f"{scam_type} india cybercrime alert")
+    
+    # Query 4: URL domain + phishing
+    url = entities.get("url")
+    if url and url.lower() not in ["null", "none", ""]:
+        # Extract domain from URL
+        domain = re.search(r'https?://([^/]+)', url)
+        if domain:
+            queries.append(f"{domain.group(1)} phishing scam india")
+    
+    # Fallback: Generic search if no entities
+    if not queries:
+        queries.append("online scam india cybercrime report 2025")
+    
+    return queries[:2]  # Return top 2 queries
+
+
+def analyze_with_internet_search(image: Image.Image, api_key: str = None, language: str = "Hinglish") -> dict:
+    """
+    Enhanced analysis with internet search verification AND live database check.
+    
+    Args:
+        image: PIL Image object of the screenshot
+        api_key: Google Gemini API key (optional)
+        language: Language for response
+    
+    Returns:
+        dict with verdict, risk_score, search_results, live_db_results, and all analysis data
+    """
+    # Step 1: Initial AI analysis
+    initial_result = analyze_screenshot(image, api_key, language)
+    
+    # If API error, return immediately
+    if initial_result.get("verdict") == "ERROR":
+        return initial_result
+    
+    # Step 2: Check against LIVE DATABASE first (fastest check)
+    entities = initial_result.get("extracted_entities", {})
+    phone_number = entities.get("phone_number")
+    upi_id = entities.get("upi_id")
+    
+    live_db_hits = []
+    live_db_boost = 0
+    
+    # Check phone number in live database
+    if phone_number and phone_number.lower() not in ["null", "none", ""]:
+        phone_check = check_phone(phone_number)
+        if phone_check.get('found'):
+            live_db_hits.append({
+                'type': 'phone',
+                'value': phone_number,
+                'reports': phone_check['reports'],
+                'last_seen': phone_check['last_seen'],
+                'scam_types': phone_check['scam_types']
+            })
+            live_db_boost += 40  # Major boost for known scammer
+            initial_result["red_flags"].append(f"🚨 LIVE ALERT: Number reported {phone_check['reports']} times!")
+    
+    # Check UPI ID in live database
+    if upi_id and upi_id.lower() not in ["null", "none", ""]:
+        upi_check = check_upi(upi_id)
+        if upi_check.get('found'):
+            live_db_hits.append({
+                'type': 'upi',
+                'value': upi_id,
+                'reports': upi_check['reports'],
+                'scam_types': upi_check['scam_types']
+            })
+            live_db_boost += 35
+            initial_result["red_flags"].append(f"⚠️ UPI ID in scam database ({upi_check['reports']} reports)")
+    
+    # Apply live database boost
+    if live_db_boost > 0:
+        original_score = initial_result.get("risk_score", 50)
+        new_score = min(100, original_score + live_db_boost)
+        initial_result["risk_score"] = new_score
+        initial_result["live_db_match"] = True
+        
+        # Force upgrade verdict for live database hits
+        if len(live_db_hits) > 0:
+            initial_result["verdict"] = "SCAM"
+    else:
+        initial_result["live_db_match"] = False
+    
+    initial_result["live_database"] = {
+        "checked": True,
+        "hits": live_db_hits,
+        "total_hits": len(live_db_hits)
+    }
+    
+    # Step 3: Build search queries from extracted data
+    search_queries = build_search_queries(initial_result)
+    
+    # Step 4: Search internet for reports
+    all_search_results = []
+    search_start_time = time.time()
+    
+    for query in search_queries:
+        try:
+            results = search_internet_for_scam(query, max_results=3)
+            if results:
+                all_search_results.extend(results)
+        except Exception as e:
+            continue
+    
+    search_latency_ms = round((time.time() - search_start_time) * 1000, 2)
+    
+    # Step 5: Enhance verdict with search context
+    if all_search_results:
+        # Add search results to the response
+        initial_result["internet_search"] = {
+            "queries": search_queries,
+            "results": all_search_results[:5],  # Top 5 results
+            "sources_found": len(all_search_results),
+            "search_latency_ms": search_latency_ms
+        }
+        
+        # Analyze search results for scam indicators
+        scam_keywords = ["scam", "fraud", "fake", "cheat", "beware", "警告", "सावधान"]
+        scam_mentions = 0
+        
+        for result in all_search_results:
+            text = (result.get("title", "") + " " + result.get("snippet", "")).lower()
+            if any(keyword in text for keyword in scam_keywords):
+                scam_mentions += 1
+        
+        # If search results confirm scam, increase risk score (but less than live DB)
+        if scam_mentions >= 2:
+            original_score = initial_result.get("risk_score", 50)
+            new_score = min(100, original_score + 15)
+            initial_result["risk_score"] = new_score
+            initial_result["internet_verified"] = True
+            initial_result["red_flags"].append(f"Internet reports confirm scam ({scam_mentions} sources)")
+            
+            # Upgrade verdict if needed (but not if already upgraded by live DB)
+            if not initial_result.get("live_db_match"):
+                if initial_result.get("verdict") == "SAFE" and new_score >= 60:
+                    initial_result["verdict"] = "SUSPICIOUS"
+                elif initial_result.get("verdict") == "SUSPICIOUS" and new_score >= 85:
+                    initial_result["verdict"] = "SCAM"
+        else:
+            initial_result["internet_verified"] = False
+    else:
+        initial_result["internet_search"] = {
+            "queries": search_queries,
+            "results": [],
+            "sources_found": 0,
+            "search_latency_ms": search_latency_ms
+        }
+        initial_result["internet_verified"] = False
+    
+    return initial_result
 
 
 def generate_cyber_complaint(scam_details: dict) -> bytes:

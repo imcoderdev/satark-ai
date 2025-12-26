@@ -327,3 +327,154 @@ def check_blacklist(text: str) -> tuple[bool, str]:
         if keyword in text_lower:
             return True, keyword
     return False, ""
+
+
+def generate_cyber_complaint(scam_details: dict) -> bytes:
+    """
+    Generate a formal cyber complaint PDF for reporting scams.
+    
+    Args:
+        scam_details: Dictionary containing:
+            - scam_type: Type of scam detected
+            - phone_number: Scammer's phone number (if extracted)
+            - company_name: Fake company name (if any)
+            - amount: Amount mentioned (if any)
+            - extracted_text: OCR text from screenshot
+            - risk_score: AI-assigned risk score
+            - red_flags: List of detected red flags
+            - reasoning: AI's reasoning
+    
+    Returns:
+        PDF as bytes for download
+    """
+    from fpdf import FPDF
+    from datetime import datetime
+    import io
+    
+    # Extract details with fallbacks
+    scam_type = scam_details.get("scam_type", "[Unknown Scam Type]")
+    phone_number = scam_details.get("phone_number") or "[Unknown Number]"
+    company_name = scam_details.get("company_name") or "[Unknown Entity]"
+    amount = scam_details.get("amount") or "[Amount Not Specified]"
+    extracted_text = scam_details.get("extracted_text") or "[Screenshot text not available]"
+    risk_score = scam_details.get("risk_score", 0)
+    red_flags = scam_details.get("red_flags", [])
+    reasoning = scam_details.get("reasoning") or "[AI analysis not available]"
+    
+    current_date = datetime.now().strftime("%d %B %Y")
+    current_time = datetime.now().strftime("%I:%M %p")
+    
+    # Create PDF
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_auto_page_break(auto=True, margin=15)
+    
+    # Header
+    pdf.set_font("Helvetica", "B", 16)
+    pdf.cell(0, 10, "OFFICIAL COMPLAINT - CYBER CRIME REPORT", ln=True, align="C")
+    pdf.ln(5)
+    
+    # Reference Number
+    pdf.set_font("Helvetica", "", 10)
+    ref_no = f"SATARK/{datetime.now().strftime('%Y%m%d%H%M%S')}"
+    pdf.cell(0, 5, f"Reference No: {ref_no}", ln=True, align="R")
+    pdf.cell(0, 5, f"Date: {current_date}", ln=True, align="R")
+    pdf.ln(10)
+    
+    # To Section
+    pdf.set_font("Helvetica", "B", 11)
+    pdf.cell(0, 6, "To:", ln=True)
+    pdf.set_font("Helvetica", "", 11)
+    pdf.multi_cell(0, 6, "The Nodal Officer,\nCyber Crime Cell,\n[City Name], [State]\nNational Cyber Crime Reporting Portal")
+    pdf.ln(5)
+    
+    # Subject
+    pdf.set_font("Helvetica", "B", 11)
+    pdf.cell(0, 6, "Subject: Reporting Financial Fraud Attempt via WhatsApp/SMS", ln=True)
+    pdf.ln(5)
+    
+    # Salutation
+    pdf.set_font("Helvetica", "", 11)
+    pdf.cell(0, 6, "Respected Sir/Madam,", ln=True)
+    pdf.ln(3)
+    
+    # Body Paragraph 1
+    body_para1 = f"I am writing to formally report a suspected financial fraud attempt that I received on {current_date} at approximately {current_time}. The sender, identified as {phone_number}, attempted to defraud me using the pretext of \"{scam_type}\"."
+    pdf.multi_cell(0, 6, body_para1)
+    pdf.ln(3)
+    
+    # Body Paragraph 2
+    if company_name != "[Unknown Entity]":
+        body_para2 = f"The fraudulent message impersonated \"{company_name}\" and mentioned an amount of {amount}. This is a clear attempt to deceive unsuspecting citizens."
+    else:
+        body_para2 = f"The message contained suspicious content mentioning {amount}. This is a clear attempt to deceive unsuspecting citizens."
+    pdf.multi_cell(0, 6, body_para2)
+    pdf.ln(5)
+    
+    # AI Analysis Section
+    pdf.set_font("Helvetica", "B", 11)
+    pdf.cell(0, 6, "AI ANALYSIS REPORT (Satark.ai):", ln=True)
+    pdf.set_font("Helvetica", "", 10)
+    pdf.cell(0, 5, f"- Risk Score: {risk_score}/100 (HIGH RISK)", ln=True)
+    pdf.cell(0, 5, f"- Scam Type: {scam_type}", ln=True)
+    
+    if red_flags:
+        pdf.cell(0, 5, "- Red Flags Detected:", ln=True)
+        for flag in red_flags[:5]:  # Limit to 5 flags
+            # Sanitize text for PDF
+            safe_flag = flag.encode('latin-1', 'replace').decode('latin-1')
+            pdf.cell(0, 5, f"    * {safe_flag}", ln=True)
+    pdf.ln(3)
+    
+    # Reasoning
+    pdf.set_font("Helvetica", "I", 10)
+    safe_reasoning = reasoning.encode('latin-1', 'replace').decode('latin-1')
+    pdf.multi_cell(0, 5, f"AI Reasoning: {safe_reasoning}")
+    pdf.ln(5)
+    
+    # Evidence Section
+    pdf.set_font("Helvetica", "B", 11)
+    pdf.cell(0, 6, "EXHIBIT A - EXTRACTED MESSAGE CONTENT:", ln=True)
+    pdf.set_font("Courier", "", 9)
+    
+    # Sanitize and truncate extracted text
+    safe_text = extracted_text.encode('latin-1', 'replace').decode('latin-1')
+    if len(safe_text) > 800:
+        safe_text = safe_text[:800] + "... [truncated]"
+    
+    # Draw bordered box for evidence
+    pdf.set_draw_color(100, 100, 100)
+    pdf.set_fill_color(245, 245, 245)
+    x = pdf.get_x()
+    y = pdf.get_y()
+    pdf.multi_cell(0, 4, safe_text, border=1, fill=True)
+    pdf.ln(5)
+    
+    # Request Section
+    pdf.set_font("Helvetica", "", 11)
+    pdf.multi_cell(0, 6, "I kindly request you to:\n1. Register an FIR against the perpetrator(s)\n2. Investigate and trace the fraudulent sender\n3. Take necessary action to prevent others from being victimized\n4. Block the reported phone number/UPI ID if applicable")
+    pdf.ln(5)
+    
+    # Declaration
+    pdf.set_font("Helvetica", "I", 10)
+    pdf.multi_cell(0, 5, "I hereby declare that the information provided above is true to the best of my knowledge. I am willing to cooperate with the investigation as required.")
+    pdf.ln(10)
+    
+    # Signature Section
+    pdf.set_font("Helvetica", "", 11)
+    pdf.cell(0, 6, "Yours faithfully,", ln=True)
+    pdf.ln(8)
+    pdf.cell(0, 6, "[Your Name]", ln=True)
+    pdf.cell(0, 6, "[Your Contact Number]", ln=True)
+    pdf.cell(0, 6, "[Your Email Address]", ln=True)
+    pdf.cell(0, 6, "[Your Address]", ln=True)
+    pdf.ln(10)
+    
+    # Footer
+    pdf.set_font("Helvetica", "I", 8)
+    pdf.set_text_color(128, 128, 128)
+    pdf.cell(0, 4, "This complaint was generated using Satark.ai - AI-Powered Scam Detection", ln=True, align="C")
+    pdf.cell(0, 4, "National Cyber Crime Helpline: 1930 | cybercrime.gov.in", ln=True, align="C")
+    
+    # Output to bytes
+    return bytes(pdf.output())

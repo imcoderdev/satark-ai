@@ -6,7 +6,7 @@ Team Tark | ML Nashik Gen AI-thon 2025
 
 import streamlit as st
 from PIL import Image
-from utils import analyze_screenshot, check_blacklist
+from utils import analyze_screenshot, check_blacklist, generate_cyber_complaint
 import uuid
 from datetime import datetime
 
@@ -111,10 +111,22 @@ st.markdown("""
 uploaded_file = st.file_uploader(
     "WhatsApp/SMS ka screenshot yahan daalo",
     type=["png", "jpg", "jpeg"],
-    help="Supported formats: PNG, JPG, JPEG"
+    help="Supported formats: PNG, JPG, JPEG",
+    key="file_uploader"
 )
 
+# Track if a new file was uploaded (reset analysis)
+if "last_uploaded_file" not in st.session_state:
+    st.session_state.last_uploaded_file = None
+
 if uploaded_file is not None:
+    # Check if this is a new file (different from last analyzed)
+    current_file_id = f"{uploaded_file.name}_{uploaded_file.size}"
+    if st.session_state.last_uploaded_file != current_file_id:
+        # New file uploaded - reset analysis
+        st.session_state.analysis_result = None
+        st.session_state.last_uploaded_file = current_file_id
+    
     # Display the uploaded image
     image = Image.open(uploaded_file)
     
@@ -131,8 +143,8 @@ if uploaded_file is not None:
     
     st.divider()
     
-    # Analyze Button
-    if st.button("🔍 Analyze Karo!", type="primary", use_container_width=True):
+    # Analyze Button - only triggers analysis, results shown from session state
+    if st.button("🔍 Analyze Karo!", type="primary", use_container_width=True, key="analyze_btn"):
         
         # Generate scan ID and timestamp
         st.session_state.scan_id = f"SATARK-{str(uuid.uuid4())[:8].upper()}"
@@ -148,7 +160,7 @@ if uploaded_file is not None:
             # Call the analysis function (uses default API key if none provided)
             result = analyze_screenshot(image, api_key if api_key else None)
             
-            # Store result in session state for Debug Mode
+            # Store result in session state for persistence
             st.session_state.analysis_result = result
             
             verdict = result.get("verdict", "UNKNOWN")
@@ -160,6 +172,10 @@ if uploaded_file is not None:
                 status.update(label="✅ Analysis Complete - Safe!", state="complete", expanded=False)
             else:
                 status.update(label="📊 Analysis Complete", state="complete", expanded=False)
+    
+    # Display Results from Session State (persists across reruns)
+    if st.session_state.analysis_result is not None:
+        result = st.session_state.analysis_result
         
         # Display Results with Tabs
         st.header("🤖 Autonomous Agent Decision")
@@ -233,18 +249,48 @@ if uploaded_file is not None:
                 btn_col1, btn_col2, btn_col3 = st.columns(3)
                 
                 with btn_col1:
-                    if st.button("🚫 Block Sender", type="primary", use_container_width=True):
-                        pass  # Action placeholder
+                    st.button("🚫 Block Sender", type="primary", use_container_width=True, key="btn_block", disabled=True)
+                    st.caption("_Coming soon_")
                 
                 with btn_col2:
-                    if st.button("🗑️ Delete Message", use_container_width=True):
-                        pass  # Action placeholder
+                    st.button("🗑️ Delete Message", use_container_width=True, key="btn_delete", disabled=True)
+                    st.caption("_Coming soon_")
                 
                 with btn_col3:
-                    if st.button("👮 Report to Cyber Cell", use_container_width=True):
-                        pass  # Action placeholder
+                    st.button("📞 Call 1930", use_container_width=True, key="btn_report", disabled=True)
+                    st.caption("_Cyber Helpline_")
                 
-                st.caption("📞 _Cyber Cell Helpline: **1930** (24x7 available)_")
+                # Legal Action - Generate Cyber Complaint PDF (Direct Download)
+                st.divider()
+                st.markdown("#### 📝 Legal Action - Draft Official Complaint")
+                
+                # Generate PDF directly and show download button
+                entities = result.get("extracted_entities", {})
+                scam_details = {
+                    "scam_type": result.get("scam_type", "Financial Fraud"),
+                    "phone_number": entities.get("phone_number"),
+                    "company_name": entities.get("company_name"),
+                    "amount": entities.get("amount"),
+                    "extracted_text": result.get("reasoning", ""),
+                    "risk_score": result.get("risk_score", 0),
+                    "red_flags": result.get("red_flags", []),
+                    "reasoning": result.get("reasoning", "")
+                }
+                
+                # Generate PDF on demand
+                pdf_bytes = generate_cyber_complaint(scam_details)
+                pdf_filename = f"Cyber_Complaint_{datetime.now().strftime('%Y%m%d')}.pdf"
+                
+                st.download_button(
+                    label="👮 Download Cyber Complaint PDF",
+                    data=pdf_bytes,
+                    file_name=pdf_filename,
+                    mime="application/pdf",
+                    use_container_width=True,
+                    type="primary",
+                    key="download_complaint"
+                )
+                st.caption("_📄 Ready-to-file complaint for cybercrime.gov.in_")
             
             st.divider()
             

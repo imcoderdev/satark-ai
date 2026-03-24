@@ -663,7 +663,8 @@ if uploaded_file is not None:
     col1, col2 = st.columns([1, 1])
     
     with col1:
-        st.image(image, use_container_width=True)
+        # Streamlit's st.image supports use_column_width; use_container_width is unsupported in this version
+        st.image(image, use_column_width=True)
     
     with col2:
         st.info(ui["image_details"])
